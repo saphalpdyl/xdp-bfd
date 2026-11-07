@@ -168,7 +168,7 @@ static int addr_unspecified(const struct bfd_addr *a, int family)
 	return a->b[12] == 0 && a->b[13] == 0 && a->b[14] == 0 && a->b[15] == 0;
 }
 
-static void resolve_local(int family, const struct bfd_addr *peer, struct bfd_addr *local)
+static void resolve_local(int family, const struct bfd_addr *peer, struct bfd_addr *local, uint32_t bind6_if_index)
 {
 	int fd = socket(family, SOCK_DGRAM, 0);
 
@@ -176,6 +176,11 @@ static void resolve_local(int family, const struct bfd_addr *peer, struct bfd_ad
 		return;
 	if (family == AF_INET6) {
 		struct sockaddr_in6 pa = { .sin6_family = AF_INET6, .sin6_port = htons(PORT_CTRL) };
+
+		if (IN6_IS_ADDR_LINKLOCAL(&pa.sin6_addr)) {
+			pa.sin6_scope_id = bind6_if_index;
+		}
+
 		struct sockaddr_in6 la = { 0 };
 		socklen_t ll = sizeof(la);
 
@@ -196,7 +201,7 @@ static void resolve_local(int family, const struct bfd_addr *peer, struct bfd_ad
 
 static void dp_resolve_local(struct session *s)
 {
-	resolve_local(s->family, &s->peer, &s->local);
+	resolve_local(s->family, &s->peer, &s->local, s->ifindex);
 }
 
 /* Once a second while not Up; if the route moved, drop the old key. */
@@ -249,7 +254,7 @@ static struct session *dp_add_find(uint32_t lid, const struct bfddp_session_msg 
 	 */
 	sm_addrs(sm, &l, &p, &fam);
 	if (addr_unspecified(&l, fam))
-		resolve_local(fam, &p, &l);
+		resolve_local(fam, &p, &l, ntohl(sm->ifindex));
 	stale = sess_by_addr(&p, &l);
 	if (stale && dp_hold_us && stale->orphaned && stale->state == ST_UP &&
 	    !!stale->is_mhop == !!(ntohl(sm->flags) & SESSION_MULTIHOP)) {
@@ -425,6 +430,8 @@ static void dp_handle_add(const struct bfddp_session_msg *sm, uint64_t t)
 			d = (uint32_t)random() | 1;
 		s->wire_disc = d;
 	}
+
+	s->ifindex = ntohl(sm->ifindex);
 	dp_add_addrs(s, sm, fresh);
 	sess_reindex(s);
 

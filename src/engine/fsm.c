@@ -50,11 +50,12 @@ static ssize_t fsm_send(int fd, const void *buf, size_t len, const struct sockad
 	return sendto(fd, buf, len, 0, dst, dlen);
 }
 
-/* RFC 5881 s4: 49152-65535. Binds fd to port on local (NULL: any), or if
- * another socket holds it, to the highest free port below the slot block,
- * away from bfdd's from 49152 up. Returns the port, or 0.
- */
-uint16_t tx_bind(int fd, int family, const struct bfd_addr *local, uint16_t port)
+// /* RFC 5881 s4: 49152-65535. Binds fd to port on local (NULL: any), or if
+//  * another socket holds it, to the highest free port below the slot block,
+//  * away from bfdd's from 49152 up. Returns the port, or 0.
+//  */
+uint16_t tx_bind(int fd, int family, const struct bfd_addr *local, uint16_t port,
+		 uint32_t bind6_if_index)
 {
 	for (int p = port; p >= 49152; p = p >= SRC_PORT ? SRC_PORT - 1 : p - 1) {
 		int rc;
@@ -63,8 +64,14 @@ uint16_t tx_bind(int fd, int family, const struct bfd_addr *local, uint16_t port
 			struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6,
 						    .sin6_port = htons((uint16_t)p) };
 
-			if (local)
+
+			if (local) {
+				if (IN6_IS_ADDR_LINKLOCAL(local->b)) {
+					sa6.sin6_scope_id = bind6_if_index;
+				}
+
 				memcpy(&sa6.sin6_addr, local->b, 16);
+			}
 			rc = bind(fd, (void *)&sa6, sizeof(sa6));
 		} else {
 			struct sockaddr_in sa = { .sin_family = AF_INET,
@@ -124,7 +131,7 @@ static int slot_sock(int slot, const struct session *s, uint16_t *port)
 	}
 	tx_sockopts(fd, s->family);
 
-	uint16_t p = tx_bind(fd, s->family, &s->local, (uint16_t)(SRC_PORT + slot));
+	uint16_t p = tx_bind(fd, s->family, &s->local, (uint16_t)(SRC_PORT + slot), s->ifindex);
 
 	if (!p) {
 		log_err("slot %d: bind port %d: %s - sending from the fallback socket\n", slot,
@@ -441,6 +448,9 @@ static void tx_one(struct session *s)
 					    .sin6_port = htons(s->is_mhop ? BFD_PORT_MHOP
 									  : PORT_CTRL) };
 		memcpy(&dst.sin6_addr, s->peer.b, 16);
+		if (IN6_IS_ADDR_LINKLOCAL(&dst.sin6_addr)) {
+			dst.sin6_scope_id = s->ifindex;
+		}
 		sent = fsm_send(txfd, buf, olen, (void *)&dst, sizeof(dst));
 	} else {
 		struct sockaddr_in dst = { .sin_family = AF_INET,

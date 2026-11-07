@@ -20,7 +20,8 @@ extern int tx6_sock;
 extern uint16_t tx_sock_port, tx6_sock_port;
 void tx_sockopts(int fd, int family);
 
-uint16_t tx_bind(int fd, int family, const struct bfd_addr *local, uint16_t port);
+uint16_t tx_bind(int fd, int family, const struct bfd_addr *local, uint16_t port,
+		 uint32_t bind6_if_index);
 
 void state_transition(struct session *s, int newstate, int diag, uint64_t t, const char *why);
 void fsm_rx(struct session *s, const struct bfd_ctrl_pkt *p, uint64_t t);

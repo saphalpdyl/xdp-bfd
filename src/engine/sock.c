@@ -153,7 +153,7 @@ void tx_open_fallback(void)
 		perror("socket v4 fallback TX");
 	} else {
 		tx_sockopts(tx_sock, AF_INET);
-		tx_sock_port = tx_bind(tx_sock, AF_INET, NULL, SRC_PORT - 1);
+		tx_sock_port = tx_bind(tx_sock, AF_INET, NULL, SRC_PORT - 1, 0);
 		if (!tx_sock_port)
 			perror("bind v4 fallback TX");
 	}
@@ -163,7 +163,7 @@ void tx_open_fallback(void)
 	} else {
 		tx_sockopts(tx6_sock, AF_INET6);
 		setsockopt(tx6_sock, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
-		tx6_sock_port = tx_bind(tx6_sock, AF_INET6, NULL, SRC_PORT - 1);
+		tx6_sock_port = tx_bind(tx6_sock, AF_INET6, NULL, SRC_PORT - 1, 0);
 		if (!tx6_sock_port)
 			perror("bind v6 fallback TX");
 	}
