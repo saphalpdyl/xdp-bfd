@@ -34,6 +34,8 @@ static int rx_open(struct rx_sock *r)
 		perror(r->sock_err);
 		return -1;
 	}
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
 	if (r->family == AF_INET6) {
 		struct sockaddr_in6 la = { .sin6_family = AF_INET6, .sin6_port = port };
 
